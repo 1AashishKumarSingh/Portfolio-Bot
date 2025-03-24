@@ -27,9 +27,9 @@ def search_faiss(query):
     _, indices = index.search(query_embedding, 1)
     best_match_idx = indices[0][0]
 
-    # if best_match_idx < 0 or best_match_idx >= len(sentences):
-    #     # return None 
-    #     return None, query_embedding
+    if best_match_idx < 0 or best_match_idx >= len(sentences):
+        # return None 
+        return None, query_embedding
 
     return sentences[best_match_idx]
 
