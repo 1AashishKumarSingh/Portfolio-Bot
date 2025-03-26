@@ -1,6 +1,7 @@
-flask
+Flask
 flask-cors
 faiss-cpu
 numpy
 sentence-transformers
 requests
+google-generativeai
