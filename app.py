@@ -6,14 +6,14 @@ from sentence_transformers import SentenceTransformer
 import requests
 import os
 import re
+from google import genai
+
 app = Flask(__name__, template_folder="templates")
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-HF_API_KEY = "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"
-HF_MODEL_ID = "meta-llama/Meta-Llama-3-8B-Instruct"
+client = genai.Client(api_key="AIzaSyB5EXrnYhXQ2hmPKEwlIo_LFSw_jq2xvXI")
 
 model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-
 index = faiss.read_index("aboutMe_faiss_index.bin")
 
 with open("aboutMe.txt", "r", encoding="utf-8") as f:
@@ -28,27 +28,20 @@ def search_faiss(query):
     best_match_idx = indices[0][0]
 
     if best_match_idx < 0 or best_match_idx >= len(sentences):
-        # return None 
-        return None, query_embedding
-
+        return None
+    
     return sentences[best_match_idx]
 
-def call_huggingface_api(context, query):
-    """Use Hugging Face API to refine the answer."""
-    headers = {"Authorization": f"Bearer {HF_API_KEY}", "Content-Type": "application/json"}
-    payload = {"inputs": f"Context: {context}\nQuestion: {query}"}
-
+def call_gemini_api(context, query):
+    """Use Google Gemini API to refine the answer."""
     try:
-        response = requests.post(f"https://api-inference.huggingface.co/models/{HF_MODEL_ID}", json=payload, headers=headers)
-        response.raise_for_status()
-        result=response.json()[0]["generated_text"]
-        # return response.json()[0]["generated_text"] 
-        match = re.search(r"Answer:\s*(.*)", result, re.IGNORECASE)
-        answer = match.group(1).strip() if match else "I'm not sure ds about that."
-
-        return answer
+        response = client.models.generate_content(
+            model="gemini-2.0-flash", 
+            contents=f"Context: {context}\nQuestion: {query}"
+        )
+        return response.text if response.text else "I'm unable to generate an answer right now."
     except Exception as e:
-        print(f" Hugging Face API error: {e}")
+        print(f"Google Gemini API error: {e}")
         return "I'm unable to generate an answer right now."
 
 @app.route("/")
@@ -59,11 +52,11 @@ def home():
 @app.route("/test")
 def test_api():
     """Hardcoded response for testing API."""
-    return jsonify({"message": " Flask API is working!", "sample_response": "This is a test response from the server."})
+    return jsonify({"message": "Flask API is working!", "sample_response": "This is a test response from the server."})
 
 @app.route("/search", methods=["POST"])
 def search():
-    """Search FAISS and refine the response using Hugging Face."""
+    """Search FAISS and refine the response using Google Gemini API."""
     try:
         data = request.json
         query = data.get("query", "")
@@ -77,7 +70,7 @@ def search():
         if not context:
             return jsonify({"error": "No relevant match found"}), 404
 
-        refined_answer = call_huggingface_api(context, query)
+        refined_answer = call_gemini_api(context, query)
 
         return jsonify({"answer": refined_answer})
 
@@ -86,4 +79,3 @@ def search():
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
-
